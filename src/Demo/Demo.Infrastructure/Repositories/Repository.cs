@@ -18,7 +18,8 @@ namespace Demo.Infrastructure.Repositories
         private DbSet<TAggregateRoot> _dbset;
         public Repository(ApplicationDbContext context)
         {
-            _db
+            _dbContext = context;
+            _dbset = _dbContext.Set<TAggregateRoot>();
         }
 
         public void Add(TAggregateRoot entityToAdd)
