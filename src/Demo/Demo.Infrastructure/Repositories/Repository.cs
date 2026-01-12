@@ -1,115 +1,516 @@
-﻿using System;
+﻿using Demo.Domain.Entities;
+using Demo.Domain.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
-using Demo.Domain.Entities;
-using Demo.Domain.Repositories;
+using System.Linq.Dynamic.Core;
 
 namespace Demo.Infrastructure.Repositories
 {
-    public abstract class Repository<TAggregateRoot, Tkey>
-                         : IRepository<TAggregateRoot, Tkey>
-                         where TAggregateRoot : class , IAggregateRoot<Tkey>
-                         where Tkey : IComparable
+    public abstract class Repository<TAggregateRoot,Tkey> : IRepository<TAggregateRoot,Tkey>
+        where TAggregateRoot : class, IAggregateRoot<Tkey>
+        where Tkey : IComparable
     {
-        private ApplicationDbContext _dbContext;
-        private DbSet<TAggregateRoot> _dbset;
-        public Repository(ApplicationDbContext context)
+        private DbContext _dbContext;
+        private DbSet<TAggregateRoot> _dbSet;
+
+        public Repository(DbContext context)
         {
             _dbContext = context;
-            _dbset = _dbContext.Set<TAggregateRoot>();
+            _dbSet = _dbContext.Set<TAggregateRoot>();
         }
 
-        public void Add(TAggregateRoot entityToAdd)
+        public virtual async Task AddAsync(TAggregateRoot entity)
         {
-            throw new NotImplementedException();
+            await _dbSet.AddAsync(entity);
         }
 
-        public Task AddAsync(TAggregateRoot entityToAdd)
+        public virtual async Task RemoveAsync(Tkey id)
         {
-            throw new NotImplementedException();
+            var entityToDelete = _dbSet.Find(id);
+            await RemoveAsync(entityToDelete);
         }
 
-        public void Edit(TAggregateRoot entityToEdit)
+        public virtual async Task RemoveAsync(TAggregateRoot entityToDelete)
         {
-            throw new NotImplementedException();
+            await Task.Run(() =>
+            {
+                if (_dbContext.Entry(entityToDelete).State == EntityState.Detached)
+                {
+                    _dbSet.Attach(entityToDelete);
+                }
+                _dbSet.Remove(entityToDelete);
+            });
         }
 
-        public Task EditAsync(TAggregateRoot entityToEdit)
+        public virtual async Task RemoveAsync(Expression<Func<TAggregateRoot, bool>> filter)
         {
-            throw new NotImplementedException();
+            await Task.Run(() =>
+            {
+                _dbSet.RemoveRange(_dbSet.Where(filter));
+            });
         }
 
-        public IList<TAggregateRoot> GetAll()
+        public virtual async Task EditAsync(TAggregateRoot entityToUpdate)
         {
-            throw new NotImplementedException();
+            await Task.Run(() =>
+            {
+                _dbSet.Attach(entityToUpdate);
+                _dbContext.Entry(entityToUpdate).State = EntityState.Modified;
+            });
         }
 
-        public Task<IList<TAggregateRoot>> GetAllAsync()
+        public virtual async Task<TAggregateRoot> GetByIdAsync(Tkey id)
         {
-            throw new NotImplementedException();
+            return await _dbSet.FindAsync(id);
         }
 
-        public TAggregateRoot GetById(Tkey id)
+        public virtual async Task<int> GetCountAsync(Expression<Func<TAggregateRoot, bool>> filter = null)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+            int count;
+
+            if (filter is not null)
+                count = await query.CountAsync(filter);
+            else
+                count = await query.CountAsync();
+
+            return count;
         }
 
-        public Task<TAggregateRoot> GetByIdAsync(Tkey id)
+        public virtual int GetCount(Expression<Func<TAggregateRoot, bool>>? filter = null)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+            int count;
+
+            if (filter is not null)
+                count = query.Count(filter);
+            else
+                count = query.Count();
+
+            return count;
         }
 
-        public int GetCount(Expression<Func<TAggregateRoot, bool>> filter = null)
+        public virtual async Task<IList<TAggregateRoot>> GetAsync(Expression<Func<TAggregateRoot, bool>> filter,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>>? include = null)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            return await query.ToListAsync();
         }
 
-        public Task<int> GetCountAsync(Expression<Func<TAggregateRoot, bool>> filter = null)
+        public virtual async Task<IList<TAggregateRoot>> GetAllAsync()
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+            return await query.ToListAsync();
         }
 
-        public void Remove(Expression<Func<TAggregateRoot, bool>> filter)
+        public virtual async Task<(IList<TAggregateRoot> data, int total, int totalDisplay)> GetAsync(
+            Expression<Func<TAggregateRoot, bool>>? filter = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>> orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            int pageIndex = 1,
+            int pageSize = 10,
+            bool isTrackingOff = false)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+            var total = query.Count();
+            var totalDisplay = query.Count();
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+                totalDisplay = query.Count();
+            }
+
+            if (include != null)
+                query = include(query);
+
+            IList<TAggregateRoot> data;
+
+            if (orderBy != null)
+            {
+                var result = orderBy(query).Skip((pageIndex - 1) * pageSize).Take(pageSize);
+
+                if (isTrackingOff)
+                    data = await result.AsNoTracking().ToListAsync();
+                else
+                    data = await result.ToListAsync();
+            }
+            else
+            {
+                var result = query.Skip((pageIndex - 1) * pageSize).Take(pageSize);
+
+                if (isTrackingOff)
+                    data = await result.AsNoTracking().ToListAsync();
+                else
+                    data = await result.ToListAsync();
+            }
+
+            return (data, total, totalDisplay);
         }
 
-        public void Remove(TAggregateRoot entityToRemove)
+        public virtual async Task<(IList<TAggregateRoot> data, int total, int totalDisplay)> GetDynamicAsync(
+            Expression<Func<TAggregateRoot, bool>>? filter = null,
+            string? orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            int pageIndex = 1,
+            int pageSize = 10,
+            bool isTrackingOff = false)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+            var total = query.Count();
+            var totalDisplay = query.Count();
+
+            if (filter is not null)
+            {
+                query = query.Where(filter);
+                totalDisplay = query.Count();
+            }
+
+            if (include is not null)
+                query = include(query);
+
+            IList<TAggregateRoot> data;
+
+            if (orderBy is not null)
+            {
+                var result = query.OrderBy(orderBy).Skip((pageIndex - 1) * pageSize).Take(pageSize);
+
+                if (isTrackingOff)
+                    data = await result.AsNoTracking().ToListAsync();
+                else
+                    data = await result.ToListAsync();
+            }
+            else
+            {
+                var result = query.Skip((pageIndex - 1) * pageSize).Take(pageSize);
+
+                if (isTrackingOff)
+                    data = await result.AsNoTracking().ToListAsync();
+                else
+                    data = await result.ToListAsync();
+            }
+
+            return (data, total, totalDisplay);
         }
 
-        public void Remove(Tkey id)
+        public virtual async Task<IList<TAggregateRoot>> GetAsync(
+            Expression<Func<TAggregateRoot, bool>> filter = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>> orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            bool isTrackingOff = false)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = orderBy(query);
+
+                if (isTrackingOff)
+                    return await result.AsNoTracking().ToListAsync();
+                else
+                    return await result.ToListAsync();
+            }
+            else
+            {
+                if (isTrackingOff)
+                    return await query.AsNoTracking().ToListAsync();
+                else
+                    return await query.ToListAsync();
+            }
         }
 
-        public Task RemoveAsync(Expression<Func<TAggregateRoot, bool>> filter)
+        public virtual async Task<IList<TAggregateRoot>> GetDynamicAsync(
+            Expression<Func<TAggregateRoot, bool>> filter = null,
+            string orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            bool isTrackingOff = false)
         {
-            throw new NotImplementedException();
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = query.OrderBy(orderBy);
+
+                if (isTrackingOff)
+                    return await result.AsNoTracking().ToListAsync();
+                else
+                    return await result.ToListAsync();
+            }
+            else
+            {
+                if (isTrackingOff)
+                    return await query.AsNoTracking().ToListAsync();
+                else
+                    return await query.ToListAsync();
+            }
         }
 
-        public Task RemoveAsync(TAggregateRoot entityToRemove)
+        public virtual void Add(TAggregateRoot entity)
         {
-            throw new NotImplementedException();
+            _dbSet.Add(entity);
         }
 
-        public Task RemoveAsync(Tkey id)
+        public virtual void Remove(Tkey id)
         {
-            throw new NotImplementedException();
+            var entityToDelete = _dbSet.Find(id);
+            Remove(entityToDelete);
         }
 
-        public void Update(TAggregateRoot entityToUpdate)
+        public virtual void Update(TAggregateRoot entity)
         {
-            throw new NotImplementedException();
+            _dbSet.Update(entity);
         }
 
-        public Task UpdateAsync(TAggregateRoot entityToUpdate)
+        public virtual void Remove(TAggregateRoot entityToDelete)
         {
-            throw new NotImplementedException();
+            if (_dbContext.Entry(entityToDelete).State == EntityState.Detached)
+            {
+                _dbSet.Attach(entityToDelete);
+            }
+            _dbSet.Remove(entityToDelete);
+        }
+
+        public virtual void Remove(Expression<Func<TAggregateRoot, bool>> filter)
+        {
+            _dbSet.RemoveRange(_dbSet.Where(filter));
+        }
+
+        public virtual void Edit(TAggregateRoot entityToUpdate)
+        {
+            if (!_dbSet.Local.Any(x => x == entityToUpdate))
+            {
+                _dbSet.Attach(entityToUpdate);
+                _dbContext.Entry(entityToUpdate).State = EntityState.Modified;
+            }
+        }
+
+        public virtual IList<TAggregateRoot> Get(Expression<Func<TAggregateRoot, bool>> filter,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null)
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            return query.ToList();
+        }
+
+        public virtual IList<TAggregateRoot> GetAll()
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+            return query.ToList();
+        }
+
+        public virtual TAggregateRoot GetById(Tkey id)
+        {
+            return _dbSet.Find(id);
+        }
+
+        public virtual (IList<TAggregateRoot> data, int total, int totalDisplay) Get(
+            Expression<Func<TAggregateRoot, bool>> filter = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>> orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            int pageIndex = 1, int pageSize = 10, bool isTrackingOff = false)
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+            var total = query.Count();
+            var totalDisplay = query.Count();
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+                totalDisplay = query.Count();
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = orderBy(query).Skip((pageIndex - 1) * pageSize).Take(pageSize);
+                if (isTrackingOff)
+                    return (result.AsNoTracking().ToList(), total, totalDisplay);
+                else
+                    return (result.ToList(), total, totalDisplay);
+            }
+            else
+            {
+                var result = query.Skip((pageIndex - 1) * pageSize).Take(pageSize);
+                if (isTrackingOff)
+                    return (result.AsNoTracking().ToList(), total, totalDisplay);
+                else
+                    return (result.ToList(), total, totalDisplay);
+            }
+        }
+
+        public virtual (IList<TAggregateRoot> data, int total, int totalDisplay) GetDynamic(
+            Expression<Func<TAggregateRoot, bool>> filter = null,
+            string? orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            int pageIndex = 1, int pageSize = 10, bool isTrackingOff = false)
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+            var total = query.Count();
+            var totalDisplay = query.Count();
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+                totalDisplay = query.Count();
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = query.OrderBy(orderBy).Skip((pageIndex - 1) * pageSize).Take(pageSize);
+                if (isTrackingOff)
+                    return (result.AsNoTracking().ToList(), total, totalDisplay);
+                else
+                    return (result.ToList(), total, totalDisplay);
+            }
+            else
+            {
+                var result = query.Skip((pageIndex - 1) * pageSize).Take(pageSize);
+                if (isTrackingOff)
+                    return (result.AsNoTracking().ToList(), total, totalDisplay);
+                else
+                    return (result.ToList(), total, totalDisplay);
+            }
+        }
+
+        public virtual IList<TAggregateRoot> Get(Expression<Func<TAggregateRoot, bool>> filter = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>> orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            bool isTrackingOff = false)
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = orderBy(query);
+
+                if (isTrackingOff)
+                    return result.AsNoTracking().ToList();
+                else
+                    return result.ToList();
+            }
+            else
+            {
+                if (isTrackingOff)
+                    return query.AsNoTracking().ToList();
+                else
+                    return query.ToList();
+            }
+        }
+
+        public virtual IList<TAggregateRoot> GetDynamic(Expression<Func<TAggregateRoot, bool>> filter = null,
+            string orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>> include = null,
+            bool isTrackingOff = false)
+        {
+            IQueryable<TAggregateRoot> query = _dbSet;
+
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            if (include != null)
+                query = include(query);
+
+            if (orderBy != null)
+            {
+                var result = query.OrderBy(orderBy);
+
+                if (isTrackingOff)
+                    return result.AsNoTracking().ToList();
+                else
+                    return result.ToList();
+            }
+            else
+            {
+                if (isTrackingOff)
+                    return query.AsNoTracking().ToList();
+                else
+                    return query.ToList();
+            }
+        }
+
+        public async Task<IEnumerable<TResult>> GetAsync<TResult>(Expression<Func<TAggregateRoot, TResult>>? selector,
+            Expression<Func<TAggregateRoot, bool>>? predicate = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>>? orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>>? include = null,
+            bool disableTracking = true,
+            CancellationToken cancellationToken = default) where TResult : class
+        {
+            var query = _dbSet.AsQueryable();
+            if (disableTracking) query.AsNoTracking();
+            if (include is not null) query = include(query);
+            if (predicate is not null) query = query.Where(predicate);
+            return orderBy is not null
+                ? await orderBy(query).Select(selector!).ToListAsync(cancellationToken)
+                : await query.Select(selector!).ToListAsync(cancellationToken);
+        }
+
+        public async Task<TResult> SingleOrDefaultAsync<TResult>(Expression<Func<TAggregateRoot, TResult>>? selector,
+            Expression<Func<TAggregateRoot, bool>>? predicate = null,
+            Func<IQueryable<TAggregateRoot>, IOrderedQueryable<TAggregateRoot>>? orderBy = null,
+            Func<IQueryable<TAggregateRoot>, IIncludableQueryable<TAggregateRoot, object>>? include = null,
+            bool disableTracking = true)
+        {
+            var query = _dbSet.AsQueryable();
+            if (disableTracking) query.AsNoTracking();
+            if (include is not null) query = include(query);
+            if (predicate is not null) query = query.Where(predicate);
+            return (orderBy is not null
+                ? await orderBy(query).Select(selector!).FirstOrDefaultAsync()
+                : await query.Select(selector!).FirstOrDefaultAsync())!;
         }
     }
 }

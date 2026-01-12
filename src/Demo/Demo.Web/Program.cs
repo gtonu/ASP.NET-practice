@@ -1,43 +1,47 @@
-using Demo.Web.Data;
+using Demo.Infrastructure.Data;
+using Demo.Infrastructure.Extensions;
+using Demo.Web.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using System.Reflection;
 
-#region Bootstrap logger
+#region BootstrapLogger configuration
 Log.Logger = new LoggerConfiguration()
-                .WriteTo.File("Logs/log-book.log", 
-                    rollingInterval: RollingInterval.Day)
-                .CreateBootstrapLogger();
+            .WriteTo.File("Logs/web-log-.log", rollingInterval: RollingInterval.Day)
+            .CreateBootstrapLogger();
 #endregion
 
 try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    #region Serilog Configuration
-    builder.Host.UseSerilog((context, lc) => lc
-           .MinimumLevel.Debug()
-           .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
-           .Enrich.FromLogContext()
-           .ReadFrom.Configuration(builder.Configuration)
-        );
-    #endregion
-
     // Add services to the container.
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? 
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
         throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
     var migrationAssembly = Assembly.GetAssembly(typeof(ApplicationDbContext));
 
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(connectionString,
-        (x) => x.MigrationsAssembly(migrationAssembly)));
-    
-    builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+    #region General Logger configuration
+    builder.Host.UseSerilog((context, lc) => lc
+           .MinimumLevel.Debug()
+           .MinimumLevel.Override("Microsoft",Serilog.Events.LogEventLevel.Warning)
+           .Enrich.FromLogContext()
+           .ReadFrom.Configuration(context.Configuration)
+    );
+    #endregion
 
-    builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
-        .AddEntityFrameworkStores<ApplicationDbContext>();
-    builder.Services.AddControllersWithViews();
+    #region configuring ApplicationDbContext
+    builder.Services.AddApplicationDbContext(connectionString, migrationAssembly);
+    #endregion
+    //builder.Services.AddKeyedTransient<IEmailUtility, EmailUtility>("Service1");
+    //builder.Services.AddKeyedTransient<IEmailUtility, HtmlUtility>("Service2");
+    builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+    builder.Services.AddRazorPages();
+
+    #region configuring ModifiedIdentiy options
+    builder.Services.AddModifiedIdentity();
+    #endregion
 
     var app = builder.Build();
 
@@ -67,8 +71,6 @@ try
 
     app.MapRazorPages()
        .WithStaticAssets();
-
-    Log.Information("Starting Application");
 
     app.Run();
 }

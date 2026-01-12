@@ -1,0 +1,6 @@
+2025-11-28 13:51:23.502 +00:00 [WRN] Storing keys in a directory '/root/.aspnet/DataProtection-Keys' that may not be persisted outside of the container. Protected data will be unavailable when container is destroyed. For more information go to https://aka.ms/aspnet/dataprotectionwarning
+2025-11-28 13:51:23.696 +00:00 [WRN] No XML encryptor configured. Key {313054fa-c816-4313-b33d-4b71888195f4} may be persisted to storage in unencrypted form.
+2025-11-28 13:51:23.710 +00:00 [WRN] Overriding HTTP_PORTS '8080' and HTTPS_PORTS ''. Binding to values defined by URLS instead 'http://*:80'.
+2025-11-28 13:51:27.746 +00:00 [WRN] Failed to determine the https port for redirect.
+2025-11-28 13:51:28.440 +00:00 [INF] Executing command AddProductCommand
+2025-11-28 13:51:29.058 +00:00 [INF] Command AddProductCommand executed successfully in 617 ms

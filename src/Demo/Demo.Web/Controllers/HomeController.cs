@@ -7,10 +7,12 @@ namespace Demo.Web.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        //private readonly IEmailUtility _emailUtility;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(ILogger<HomeController> logger)//,[FromKeyedServices("Service1")]IEmailUtility emailUtility)
         {
             _logger = logger;
+            //_emailUtility = emailUtility;
         }
 
         public IActionResult Index()
