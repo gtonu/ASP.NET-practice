@@ -1,6 +1,7 @@
 using Demo.Infrastructure.Data;
 using Demo.Infrastructure.Extensions;
 using Demo.Web.Models;
+using Mapster;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -33,6 +34,10 @@ try
 
     #region configuring ApplicationDbContext
     builder.Services.AddApplicationDbContext(connectionString, migrationAssembly);
+    #endregion
+
+    #region Mapster configuration
+    builder.Services.AddMapster();
     #endregion
     //builder.Services.AddKeyedTransient<IEmailUtility, EmailUtility>("Service1");
     //builder.Services.AddKeyedTransient<IEmailUtility, HtmlUtility>("Service2");

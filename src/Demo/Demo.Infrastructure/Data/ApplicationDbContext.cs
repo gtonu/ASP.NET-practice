@@ -1,4 +1,5 @@
-﻿using Demo.Infrastructure.Identity;
+﻿using Demo.Domain.Entities;
+using Demo.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,5 +18,7 @@ namespace Demo.Infrastructure.Data
             : base(options)
         {
         }
+
+        public DbSet<Book> Books {get;set;}
     }
 }

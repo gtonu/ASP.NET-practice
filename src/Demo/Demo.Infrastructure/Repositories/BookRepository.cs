@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Demo.Infrastructure.Repositories
 {
-    public class BookRepository : Repository<Books, Guid>, IBookRepository
+    public class BookRepository : Repository<Book, Guid>, IBookRepository
     {
         public BookRepository(ApplicationDbContext context) 
             : base(context)

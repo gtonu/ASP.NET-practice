@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Demo.Domain.Repositories
 {
-    public interface IBookRepository : IRepository<Books,Guid>
+    public interface IBookRepository : IRepository<Book,Guid>
     {
     }
 }
