@@ -16,6 +16,8 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    var googleClientId = builder.Configuration["web:client_id"];
+    var googleClientSecret = builder.Configuration["web:client_secret"];
 
     // Add services to the container.
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
@@ -30,6 +32,14 @@ try
            .Enrich.FromLogContext()
            .ReadFrom.Configuration(context.Configuration)
     );
+    #endregion
+
+    #region Google login configuration
+    builder.Services.AddAuthentication().AddGoogle(googleOptions =>
+    {
+        googleOptions.ClientId = googleClientId;
+        googleOptions.ClientSecret = googleClientSecret;
+    });
     #endregion
 
     #region configuring ApplicationDbContext
@@ -68,6 +78,12 @@ try
     app.UseAuthorization();
 
     app.MapStaticAssets();
+
+    //Admin area routing configuration..
+    app.MapControllerRoute(
+        name: "areas",
+        pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}")
+        .WithStaticAssets();
 
     app.MapControllerRoute(
         name: "default",
